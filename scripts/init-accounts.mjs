@@ -13,7 +13,7 @@ if(JSON.stringify(teams)!=='[1,2,3,4,5,6]')throw Error('队伍映射必须1到6�
 await mkdir('.private',{recursive:true});
 let saved=[];try{saved=JSON.parse(await readFile('.private/credentials.json','utf8'));}catch{}
 async function request(path,method,body){
- const r=await fetch(url+path,{method,headers:{apikey:key,Authorization:'Bearer '+key,'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=representation'},body:body?JSON.stringify(body):undefined});
+ const r=await fetch(url+path,{method,headers:{apikey:key,...(key.startsWith('eyJ')?{Authorization:'Bearer '+key}:{}),'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=representation'},body:body?JSON.stringify(body):undefined});
  const text=await r.text();if(!r.ok)throw Error('初始化失败 '+r.status+'：'+text);return text?JSON.parse(text):null;
 }
 for(const entry of list){

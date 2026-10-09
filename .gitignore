@@ -3,6 +3,5 @@
 !.env.example
 node_modules/
 dist/
-web/assets/
 playwright-report/
 test-results/

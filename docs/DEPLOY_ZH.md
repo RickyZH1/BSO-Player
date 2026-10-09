@@ -23,7 +23,7 @@ npm run prepare:private
 
 .private是本地私密文件夹，里面会出现seed.sql、source.html、reference.json。它含工作人员规则和六队数据，只供主办方初始化使用。**不要把它拖到GitHub、发活动群或作为Pages发布目录。**
 
-本步骤会联网读取已经核对的Game版本。如果网络读取失败，换可访问GitHub的网络重试。总控应在旧仓库转私有或清理前保留这份本地备份；以后可设置SOURCE_HTML环境变量指向已备份source.html，再运行导入脚本。
+私密种子生成步骤会联网读取已经核对的Game版本（公开图片已经复制进新仓库）。如果网络读取失败，换可访问GitHub的网络重试。总控应在旧仓库转私有或清理前保留这份本地备份；以后可设置SOURCE_HTML环境变量指向已备份source.html，再运行导入脚本。
 
 检查点：文件夹内已有.private/seed.sql；不要双击网页当作网站运行。
 
@@ -31,7 +31,7 @@ npm run prepare:private
 
 你已经有项目，可以直接进入Supabase Dashboard，选择对应项目；不要再创建重复项目。如果需要演练项目，在New project选择Free，设置独立数据库密码，等待状态Ready。这个密码是数据库管理密码，不是参赛者登录密码。
 
-在项目左侧找到Settings → API Keys（某些版本在Project Settings → API）：
+在项目左侧找到Settings → API Keys：
 
 - Project URL可公开。
 - Publishable key（sb_publishable_开头）或旧版anon public可公开，必须配合RLS。
