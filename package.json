@@ -1,0 +1,21 @@
+{
+  "name": "bso-player",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare:private": "node scripts/prepare.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/serve.mjs",
+    "test": "node --test tests/model.test.mjs",
+    "test:db": "node tests/database.mjs",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.57.4"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "pg": "8.16.3",
+    "@playwright/test": "1.56.1"
+  }
+}

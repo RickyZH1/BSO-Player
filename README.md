@@ -1,5 +1,5 @@
-# BSO 10th Anniversary · Player Portal
+# BSO 10周年 · Player Portal V1
 
-开发中，尚未部署或验收。GitHub Pages + Supabase，43名参赛者（T1—T5各7人，T6为8人）与8名独立工作人员。
+GitHub Pages + Supabase。M1/M2功能代码及自动测试已提交，正在验证。中文部署和运营文档随后补齐。尚未初始化真实Supabase数据库，不代表已上线。
 
-本项目按M1基础流程、M2完整V1分阶段实施。原Game仓库保持不变。所有账号、私密规则和业务数据只在Supabase受限区域存储。
+43名参赛者（T1—T5各7人、T6 8人）+8名独立工作人员。全部工作人员具有同等活动业务权限。所有私密种子由 `npm run prepare:private` 写入本地 `.private/seed.sql`，严禁提交。
