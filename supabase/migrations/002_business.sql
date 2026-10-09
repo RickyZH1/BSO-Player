@@ -144,7 +144,7 @@ declare
  me public.profiles; g public.game_control; old jsonb; answer jsonb:='{}'; req private.requests;
  t int; task text; r public.team_task_results; cfg jsonb; amount int; now_at timestamptz;
  photo public.photo_submissions; claim public.bingo_claims; uid uuid; reason text; next_phase text; closing timestamptz;
- n int; target int; obj record; completed boolean;
+ n int; target int; obj record;
 begin
  if request_id is null or payload is null then raise exception '请求标识缺失'; end if;
  perform pg_advisory_xact_lock(710151);
