@@ -12,11 +12,11 @@ create function private.can_bingo() returns boolean language sql stable security
  select phase not in ('CLOSED','ARCHIVED') and (close_at is null or clock_timestamp()<close_at)
  from public.game_control where id
 $$;
-create function private.eligible(t int,k text) returns boolean language plpgsql stable security definer set search_path='' as $$
+create function private.eligible(t int,k text,as_of timestamptz default 'infinity') returns boolean language plpgsql stable security definer set search_path='' as $$
 declare n int; pos int[]; ln int[];
 begin
  select count(*),array_agg(b.position) into n,pos from public.bingo_cells b join public.team_task_results r using(team_id,task_id)
- where b.team_id=t and r.completed and r.counts_for_bingo;
+ where b.team_id=t and r.completed and r.counts_for_bingo and r.performed_at<=as_of;
  if k='full' then return n=9; end if;
  if k<>'first' or n<5 then return false; end if;
  foreach ln slice 1 in array array[[1,2,3],[4,5,6],[7,8,9],[1,4,7],[2,5,8],[3,6,9],[1,5,9],[3,5,7]] loop
@@ -73,7 +73,7 @@ create function private.settle_claims() returns void language plpgsql security d
 declare c public.bingo_claims; rk int:=0; blocked boolean:=false; value int;
 begin
  for c in select * from public.bingo_claims order by submitted_at,ordinal loop
-  if c.status<>'rejected' and not private.eligible(c.team_id,c.kind) then
+  if c.status<>'rejected' and not private.eligible(c.team_id,c.kind,c.submitted_at) then
    update public.bingo_claims set status='rejected',rejection_reason='资格因更正而失效，请核验后重新申报',approved_by=auth.uid(),approved_at=clock_timestamp() where id=c.id;
    perform private.audit('claim_invalidated',c.id::text,to_jsonb(c),null,'任务/照片更正');
    c.status:='rejected';
@@ -91,8 +91,9 @@ begin
  end loop;
 end $$;
 create function private.settle_photo(target int) returns void language plpgsql security definer set search_path='' as $$
-declare win public.photo_submissions; t int; n int; was public.team_task_results; now_at timestamptz:=clock_timestamp(); eligible boolean;
+declare win public.photo_submissions; t int; n int; was public.team_task_results; now_at timestamptz:=clock_timestamp(); eligible boolean; fifth_at timestamptz; cutoff timestamptz;
 begin
+ select close_at into cutoff from public.game_control where id;
  select * into win from public.photo_submissions where target_id=target and status='approved' order by submitted_at,ordinal limit 1;
  if win.id is not null and exists(select 1 from public.photo_submissions p where p.target_id=target and p.status='pending'
  and (p.submitted_at,p.ordinal)<(win.submitted_at,win.ordinal)) then win.id:=null; end if;
@@ -101,9 +102,10 @@ begin
   perform private.set_net(t,'finder',target::text,case when win.id is not null and win.team_id=t then 10 else 0 end,'首发额外奖励/冲正');
   select count(*) into n from public.photo_submissions where team_id=t and status='approved';
   select * into was from public.team_task_results where team_id=t and task_id='hide_and_seek';
-  eligible:=n>=5 and case when was.completed then was.counts_for_bingo else private.can_bingo() end;
-  if n>=5 and not was.completed then
-   update public.team_task_results set completed=true,counts_for_bingo=eligible,performed_at=now_at,verified_at=now_at,approved_by=auth.uid(),version=version+1 where team_id=t and task_id='hide_and_seek';
+  select reviewed_at into fifth_at from public.photo_submissions where team_id=t and status='approved' order by reviewed_at,ordinal offset 4 limit 1;
+  eligible:=n>=5 and (cutoff is null or fifth_at<cutoff);
+  if n>=5 and (not was.completed or was.counts_for_bingo is distinct from eligible or was.performed_at is distinct from fifth_at) then
+   update public.team_task_results set completed=true,counts_for_bingo=eligible,performed_at=fifth_at,verified_at=now_at,approved_by=auth.uid(),version=version+1 where team_id=t and task_id='hide_and_seek';
   elsif n<5 and was.completed then
    update public.team_task_results set completed=false,counts_for_bingo=false,verified_at=now_at,approved_by=auth.uid(),version=version+1 where team_id=t and task_id='hide_and_seek';
   end if;
@@ -194,7 +196,7 @@ begin
    if photo.reserved_at<now_at-interval '10 minutes' then raise exception '上传已过期，请重新选择照片'; end if;
    if exists(select 1 from public.photo_submissions where team_id=t and target_id=photo.target_id and status in ('pending','approved')) then raise exception '该目标已有待审核或有效照片'; end if;
    if not exists(select 1 from storage.objects where bucket_id='evidence' and name=photo.storage_key) then raise exception '照片尚未上传成功'; end if;
-   update public.photo_submissions set submitted_at=now_at,status='pending' where id=photo.id;
+   update public.photo_submissions set submitted_at=now_at,status='pending',ordinal=default where id=photo.id;
    answer:=jsonb_build_object('id',photo.id);
   end if;
  elsif action in ('start_task','preview_score','approve_task','correct_task','revoke_task') then
@@ -252,7 +254,7 @@ begin
   if payload->>'status' not in ('approved','rejected') or payload->>'status' is null then raise exception '状态错误'; end if;
   if claim.status=payload->>'status' then return jsonb_build_object('already',true); end if;
   if (payload->>'status'='rejected' or claim.status<>'pending') and reason is null then raise exception '驳回或更正须填写原因'; end if;
-  if payload->>'status'='approved' and not private.eligible(claim.team_id,claim.kind) then raise exception '资格不足'; end if;
+  if payload->>'status'='approved' and not private.eligible(claim.team_id,claim.kind,claim.submitted_at) then raise exception '资格不足'; end if;
   old:=to_jsonb(claim);
   update public.bingo_claims set status=payload->>'status',approved_at=now_at,approved_by=auth.uid(),rejection_reason=reason where id=claim.id;
   perform private.settle_claims();
