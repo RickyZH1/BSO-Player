@@ -2,7 +2,24 @@ import {createClient} from '@supabase/supabase-js';
 import {config} from './config.js';
 import {escapeHTML as e,compress,csv} from './domain.js';
 const $=s=>document.querySelector(s),app=$('#app'),dialog=$('#dialog');
-const client=config.key?createClient(config.url,config.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}}):null;
+// A failed mobile connection must produce feedback instead of an endless spinner.
+async function requestFetch(input,init={}){
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),String(input).includes('/storage/')?60000:20000);
+ const abort=()=>controller.abort();
+ if(init.signal){if(init.signal.aborted)abort();else init.signal.addEventListener('abort',abort,{once:true});}
+ try{return await fetch(input,{...init,signal:controller.signal});}
+ catch(err){if(controller.signal.aborted&&!init.signal?.aborted)throw Error('连接Supabase超时，请切换Wi-Fi或移动网络后重试');throw err;}
+ finally{clearTimeout(timeout);init.signal?.removeEventListener('abort',abort);}
+}
+const client=config.key?createClient(config.url,config.key,{global:{fetch:requestFetch},auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}}):null;
+function loginStatus(message,isError=false){
+ const node=document.querySelector('#login-status');
+ if(node){node.hidden=false;node.textContent=message;node.classList.toggle('warning',isError);}
+}
+function deadline(promise,ms,message){
+ let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error(message)),ms);})]).finally(()=>clearTimeout(timer));
+}
 let data=null,tab='home',busy=false,loading=false,lastSync=null,session=null,poll=null,syncError=false;
 const names={PRE_EVENT:'集合前',OPENING:'统一开场',EXPLORING:'自由探索',CLOSING:'清盘提醒',CLOSED:'比赛已截止',ARCHIVED:'已归档'};
 const statusName={uploading:'上传未完成',pending:'待审核',approved:'审核通过',rejected:'已驳回'};
@@ -28,7 +45,7 @@ function selectTask(){return '<label>关卡<select name="task">'+data.tasks.filt
 function login(){
  if(dialog.open)dialog.close();$('#dialog-body').innerHTML='';data=null;$('#nav').innerHTML='';$('#logout').hidden=true;
  const hint=new URLSearchParams(location.search).get('team');
- app.innerHTML='<div class="login"><p class="eyebrow">A DAY OUT, TOGETHER</p><h1>十年同行<br>一起去探索。</h1><p class="muted">BSO 10周年 · 公园团队赛</p><div class="card"><h2>'+(/^[1-6]$/.test(hint)?'Team '+hint+' 登录':'欢迎来到活动空间')+'</h2><p class="muted">队伍使用本队共享账号；工作人员使用自己的独立账号。</p>'+form('login',field('账号邮箱','email','','email','required autocomplete="username"')+field('密码','password','','password','required autocomplete="current-password"'),'进入活动')+'</div><small>2026.10.15 · Asia/Shanghai<br>43名参赛者 · 6支队伍 · 8位工作人员</small></div>';
+ app.innerHTML='<div class="login"><p class="eyebrow">A DAY OUT, TOGETHER</p><h1>十年同行<br>一起去探索。</h1><p class="muted">BSO 10周年 · 公园团队赛</p><div class="card"><h2>'+(/^[1-6]$/.test(hint)?'Team '+hint+' 登录':'欢迎来到活动空间')+'</h2><p class="muted">队伍使用本队共享账号；工作人员使用自己的独立账号。</p>'+form('login',field('账号邮箱','email','','email','required autocomplete="username"')+field('密码','password','','password','required autocomplete="current-password"'),'进入活动')+'<p id="login-status" class="notice" role="status" aria-live="polite" hidden></p></div><small>2026.10.15 · Asia/Shanghai<br>43名参赛者 · 6支队伍 · 8位工作人员</small></div>';
  if(!config.key){$('#login button').disabled=true;toast('网站尚未配置Supabase公开密钥，请按部署教程配置后重新发布');}
 }
 async function sync(){
@@ -37,7 +54,10 @@ async function sync(){
   const {data:next,error}=await client.rpc('portal_read');if(error)throw error;if(session?.user.id!==syncingUser)return;
   const hint=new URLSearchParams(location.search).get('team');
   if(next.profile.role==='team'&&/^[1-6]$/.test(hint)&&next.profile.team_id!==+hint){await client.auth.signOut();throw Error('此账号不属于链接指定队伍，请使用本队账号');}
-  data=next;syncError=false;lastSync=new Date();$('#logout').hidden=false;if(!dialog.open&&!document.activeElement?.closest('form'))render();
+  const firstRead=!data;data=next;syncError=false;lastSync=new Date();$('#logout').hidden=false;
+  // Preserve active edits only after the authenticated screen exists. Safari
+  // may keep the password input focused after submit: first login must render.
+  if(!dialog.open&&(firstRead||!document.activeElement?.closest('form')))render();
  }catch(err){syncError=true;toast('未同步：'+err.message);if(!data)app.innerHTML='<div class="card"><h2>暂时无法进入</h2><p>'+e(err.message)+'</p>'+btn('重试','refresh')+btn('退出登录','logout','','quiet')+'</div>';}
  finally{loading=false;}
 }
@@ -148,7 +168,7 @@ async function clickAction(name,v){
 }
 async function submit(formEl){
  const d=Object.fromEntries(new FormData(formEl)),id=formEl.id;
- if(id==='login'){const {data:s,error}=await client.auth.signInWithPassword({email:d.email.trim(),password:d.password});if(error)throw error;session=s.session;tab='home';await sync();return;}
+ if(id==='login'){loginStatus('正在验证账号，请稍候…');const {data:s,error}=await deadline(client.auth.signInWithPassword({email:d.email.trim(),password:d.password}),30000,'登录连接超时，请切换网络后重试');if(error)throw error;session=s.session;tab='home';loginStatus('账号验证成功，正在读取本队数据…');await sync();if(data)render();return;}
  if(id==='select-task')return staffTask(+d.team,d.task);
  if(id==='upload'){
   const file=new FormData(formEl).get('photo'),blob=await compress(file);toast('照片已压缩，正在上传…');
@@ -183,8 +203,8 @@ document.addEventListener('click',async ev=>{
  busy=true;b.disabled=true;try{await clickAction(b.dataset.action,b.dataset.value);}catch(err){toast(err.message);}finally{busy=false;b.disabled=false;}
 });
 document.addEventListener('submit',async ev=>{
- ev.preventDefault();if(busy)return;busy=true;const b=ev.target.querySelector('button[type=submit]');if(b)b.disabled=true;
- try{await submit(ev.target);}catch(err){toast('未完成：'+err.message);}finally{busy=false;if(b)b.disabled=false;}
+ ev.preventDefault();if(busy)return;busy=true;const b=ev.target.querySelector('button[type=submit]');const original=b?.textContent;if(b){b.disabled=true;if(ev.target.id==='login')b.textContent='正在登录…';}
+ try{await submit(ev.target);}catch(err){const message='未完成：'+err.message;if(ev.target.id==='login')loginStatus(message,true);toast(message);}finally{busy=false;if(b){b.disabled=false;b.textContent=original;}}
 });
 $('#logout').onclick=()=>client.auth.signOut();
 window.addEventListener('online',sync);

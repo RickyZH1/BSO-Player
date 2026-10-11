@@ -1,0 +1,30 @@
+name: Safari Login Check
+on:
+  push:
+    paths:
+      - web/app.js
+      - tests/browser/login.spec.js
+      - playwright.login.config.js
+      - .github/workflows/safari-login.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  login:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Build pre-fix reference for regression reproduction
+        run: |
+          git show 70975439954f9452afe4329fa929f0caae49684e:web/app.js > web/baseline-app.js
+          node --input-type=module -e "import {build} from 'esbuild'; await build({entryPoints:['web/baseline-app.js'],bundle:true,format:'esm',outfile:'dist/baseline.js',external:['./config.js'],minify:true});"
+          rm web/baseline-app.js
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npx playwright test --config playwright.login.config.js
