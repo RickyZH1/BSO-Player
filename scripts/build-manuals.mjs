@@ -102,7 +102,7 @@ for(const type of ['player','staff']){
  const imgs=await Promise.all(imageNames.map(async n=>'data:image/png;base64,'+(await readFile(out+'/'+n)).toString('base64')));
  await render.setContent('<html><style>@page{size:A4;margin:0}body{margin:0}.sheet{width:210mm;height:297mm;page-break-after:always}.sheet:last-child{page-break-after:auto}.sheet img{width:210mm;height:297mm;display:block}</style>'+imgs.map(s=>'<div class="sheet"><img src="'+s+'"></div>').join('')+'</html>');await render.evaluate(()=>Promise.all([...document.images].map(i=>i.decode())));
  await render.pdf({path:out+'/'+type+'-manual.pdf',format:'A4',printBackground:true,preferCSSPageSize:true});
- await writeFile(out+'/'+type+'-README.md','# '+label+'图解手册\n\n[下载PDF]('+type+'-manual.pdf+') · 图片为演示界面，无真实账号或秘密规则。\n\n'+imageNames.map((n,i)=>'### '+(i===0?'封面':pages[i-1].title)+'\n\n!['+label+'第'+(i+1)+'页]('+n+')\n').join('\n'));
+ await writeFile(out+'/'+type+'-README.md','# '+label+'图解手册\n\n[下载PDF]('+type+'-manual.pdf) · 图片为演示界面，无真实账号或秘密规则。\n\n'+imageNames.map((n,i)=>'### '+(i===0?'封面':pages[i-1].title)+'\n\n!['+label+'第'+(i+1)+'页]('+n+')\n').join('\n'));
  await render.setViewportSize({width:1216,height:48+Math.ceil(imgs.length/4)*412});
  await render.setContent('<html><style>body{margin:0;background:#e4eade;padding:24px}.grid{display:grid;grid-template-columns:repeat(4,280px);gap:16px}img{display:block;width:280px;height:396px;box-shadow:0 2px 6px #0002}</style><div class="grid">'+imgs.map(s=>'<img src="'+s+'">').join('')+'</div></html>');await render.evaluate(()=>Promise.all([...document.images].map(i=>i.decode())));
  await render.screenshot({path:out+'/'+type+'-overview.png',fullPage:true});await render.setViewportSize({width:1160,height:1640});
