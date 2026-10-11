@@ -78,6 +78,7 @@ async function screenshot(item,staff){
  else if(k==='s-bingo'){await nav('bingo');marks=['#app .card h3','[data-action=claim-review]'];}
  else if(k==='s-export'){scroll='[data-action=export]';marks=['[data-action=export]','[data-action=export-ledger]'];}
  if(scroll)await page.locator(scroll).first().scrollIntoViewIfNeeded();
+ if(k==='p-claim')await page.locator('[data-action=claim][data-value=full]').evaluate(el=>{const r=el.getBoundingClientRect();window.scrollBy(0,Math.max(0,r.bottom-(innerHeight-110)));});
  await page.evaluate(selectors=>{selectors.forEach((s,i)=>{const el=document.querySelector(s);if(!el)return;const r=el.getBoundingClientRect();if(r.top>=innerHeight||r.bottom<=0)return;const tag=document.createElement('div');tag.style.cssText='position:fixed;z-index:99999;pointer-events:none;border:2px solid #c18b25;border-radius:7px;box-sizing:border-box;left:'+Math.max(0,r.left-2)+'px;top:'+Math.max(0,r.top-2)+'px;width:'+Math.min(r.width+4,innerWidth-r.left)+'px;height:'+r.height+'px;';const badge=document.createElement('b');badge.textContent=String(i+1);badge.style.cssText='position:absolute;left:0;top:0;border-radius:50%;background:#b07919;color:white;font:700 12px/22px sans-serif;text-align:center;width:22px;height:22px;';tag.appendChild(badge);(document.querySelector('dialog[open]')||document.body).appendChild(tag);});},marks);
  await page.screenshot({path:scratch+'/'+k+'.png',animations:'disabled'});await context.close();return (await readFile(scratch+'/'+k+'.png')).toString('base64');
 }
