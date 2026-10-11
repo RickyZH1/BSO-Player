@@ -1,0 +1,52 @@
+name: Generate Illustrated Manuals
+on:
+  push:
+    paths:
+      - scripts/build-manuals.mjs
+      - docs/manuals/content.json
+      - docs/manuals/style.css
+      - .github/workflows/manuals.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+      - run: node scripts/build-manuals.mjs
+      - name: Check PDF page counts and package
+        run: |
+          python -m pip install pypdf
+          python - <<'PY'
+          from pypdf import PdfReader
+          from pathlib import Path
+          import zipfile
+          root=Path("docs/manuals/generated")
+          for kind,expected in [("player",10),("staff",16)]:
+              actual=len(PdfReader(root/f"{kind}-manual.pdf").pages)
+              assert actual==expected, (kind,actual,expected)
+              print(f"PASS: {kind} PDF has {actual} pages")
+          with zipfile.ZipFile(root/"BSO-manuals.zip","w",zipfile.ZIP_DEFLATED) as z:
+              for p in root.iterdir():
+                  if p.suffix in [".png",".pdf",".md"]:
+                      z.write(p,p.name)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BSO-illustrated-manuals
+          path: docs/manuals/generated
+      - name: Save generated deliverables
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/manuals/generated
+          git diff --cached --quiet || git commit -m "Add illustrated player and staff manuals [skip ci]"
+          git push
