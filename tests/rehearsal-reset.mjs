@@ -1,0 +1,72 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import pg from 'pg';
+const client=new pg.Client({connectionString:process.env.TEST_DATABASE_URL});
+await client.connect();
+let checks=0;
+const q=s=>client.query(s);
+const eq=(actual,expected)=>{assert.deepEqual(actual,expected);checks++;};
+await q(await readFile('tests/bootstrap.sql','utf8'));
+await q(await readFile('supabase/migrations/001_core.sql','utf8'));
+await q(`
+insert into public.teams select i,'T'||i,case when i=6 then 8 else 7 end from generate_series(1,6)i;
+insert into auth.users select ('00000000-0000-4000-8000-'||lpad(i::text,12,'0'))::uuid from generate_series(1,14)i;
+insert into public.profiles select id,case when row_number()over(order by id)<=6 then 'team' else 'staff' end,
+case when row_number()over(order by id)<=6 then row_number()over(order by id)::int else null end,'demo',true from auth.users;
+insert into public.tasks select 'demo_'||i,'示意任务','checkpoint','x' from generate_series(1,9)i;
+insert into public.bingo_cells select t.id,i,'demo_'||i from public.teams t cross join generate_series(1,9)i;
+insert into public.team_task_results select team_id,task_id,false,false,null,null,null,null,0,1 from public.bingo_cells;
+insert into public.food_assignments select id,'原清单',now(),null,'已编辑替代方案' from public.teams;
+insert into public.clues select 'demo_'||i,'已编辑线索',null,null from generate_series(1,7)i;
+insert into public.photo_targets select i,'public-target','public-thumb',true from generate_series(1,11)i;
+insert into public.staff_rules select id,'秘密规则演示','{}','私密位置示意' from public.tasks;
+update public.game_control set event_date=(now() at time zone 'Asia/Shanghai')::date+3,
+phase='EXPLORING',started_at=now(),exploration_released_at=now(),close_at=now()+interval '1 hour',
+opening_notice='已编辑开场',scope_notice='已编辑范围',contact_notice='已编辑联络';
+insert into public.score_ledger(team_id,kind,source_id,idempotency_key,amount) select id,'initial',id::text,'old-initial:'||id,500 from public.teams;
+insert into public.score_ledger(team_id,kind,source_id,idempotency_key,amount) values(1,'task','demo_1','old-award',100);
+insert into public.score_ledger(team_id,kind,source_id,idempotency_key,amount,reversed_entry_id)
+select 1,'adjust','demo_1','old-reversal',-10,id from public.score_ledger where idempotency_key='old-award';
+update public.team_task_results set completed=true,counts_for_bingo=true,score_amount=100,started_at=now(),performed_at=now(),verified_at=now() where team_id=1;
+insert into public.task_evidence values(1,'demo_1','{"count":1}');
+insert into public.photo_submissions(team_id,target_id,storage_key,status,submitted_at) values(1,1,'1/test.jpg','approved',now());
+insert into public.bingo_claims(team_id,kind,status) values(1,'first','approved');
+insert into public.announcements(message) values('测试公告');
+insert into private.requests values(gen_random_uuid(),gen_random_uuid(),'test','{}','{}');
+insert into public.audit_events(action,reason) values('old-audit','必须保留');
+`);
+const raw=await readFile('docs/manuals-v2/reset-files/02_reset_rehearsal.sql','utf8');
+const confirmed=raw.replace("reset_confirmation text := '未确认'","reset_confirmation text := '全部是测试，可以清空'");
+async function rejects(sql,pattern){let caught;try{await q(sql);}catch(e){caught=e;}finally{await q('rollback');}assert.match(caught?.message||'',pattern);checks++;}
+await rejects(raw,/请先确认/);
+eq(Number((await q('select count(*) n from public.score_ledger')).rows[0].n),8);
+await q("insert into storage.objects(bucket_id,name)values('evidence','orphan.jpg')");
+await rejects(confirmed,/Storage/);
+eq(Number((await q('select count(*) n from public.photo_submissions')).rows[0].n),1);
+await q("delete from storage.objects");
+await q("update public.game_control set event_date=(now()at time zone 'Asia/Shanghai')::date");
+await rejects(confirmed,/已到活动日期/);
+await q("update public.game_control set event_date=(now()at time zone 'Asia/Shanghai')::date+3");
+await q("delete from public.bingo_cells where team_id=6 and position=9");
+await rejects(confirmed,/基础数据/);
+await q("insert into public.bingo_cells values(6,9,'demo_9')");
+await q(confirmed);
+eq((await q('select phase from public.game_control')).rows[0].phase,'PRE_EVENT');
+for(const table of ['photo_submissions','bingo_claims','task_evidence','announcements'])eq(Number((await q('select count(*) n from public.'+table)).rows[0].n),0);
+eq(Number((await q('select count(*) n from private.requests')).rows[0].n),0);
+eq(Number((await q('select count(*) n from public.team_task_results where completed or counts_for_bingo or started_at is not null or performed_at is not null or verified_at is not null or score_amount<>0')).rows[0].n),0);
+eq((await q('select team_id,sum(amount)::int amount,count(*)::int n from public.score_ledger group by team_id order by team_id')).rows,Array.from({length:6},(_,i)=>({team_id:i+1,amount:500,n:1})));
+eq(Number((await q('select count(*) n from public.profiles')).rows[0].n),14);
+eq(Number((await q('select count(*) n from public.bingo_cells')).rows[0].n),54);
+eq(Number((await q('select count(*) n from public.food_assignments where unlocked_at is null and unlocked_by is null and substitute_details=\'已编辑替代方案\'')).rows[0].n),6);
+eq(Number((await q("select count(*) n from public.clues where text='已编辑线索'")).rows[0].n),7);
+eq(Number((await q("select count(*) n from public.staff_rules where rule_text='秘密规则演示'")).rows[0].n),9);
+eq(Number((await q("select count(*) n from public.audit_events where action='old-audit'")).rows[0].n),1);
+eq((await q("select opening_notice,scope_notice,contact_notice from public.game_control")).rows[0],{opening_notice:'已编辑开场',scope_notice:'已编辑范围',contact_notice:'已编辑联络'});
+await q(await readFile('docs/manuals-v2/reset-files/01_precheck.sql','utf8'));
+await q(await readFile('docs/manuals-v2/reset-files/03_verify_reset.sql','utf8'));
+await q(confirmed);
+eq(Number((await q('select count(*) n from public.score_ledger')).rows[0].n),6);
+eq(Number((await q("select count(*) n from public.audit_events where action='rehearsal_reset_by_sql_editor'")).rows[0].n),2);
+console.log('PASS: '+checks+' reset assertions; confirmation/date/storage/shape guards, rollback, all-team reset, preserved configuration and audit, repeatability. Test database only; no live Supabase connection.');
+await client.end();
