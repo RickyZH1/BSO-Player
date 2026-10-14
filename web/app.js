@@ -45,7 +45,7 @@ function selectTask(){return '<label>关卡<select name="task">'+data.tasks.filt
 function login(){
  if(dialog.open)dialog.close();$('#dialog-body').innerHTML='';data=null;$('#nav').innerHTML='';$('#logout').hidden=true;
  const hint=new URLSearchParams(location.search).get('team');
- app.innerHTML='<div class="login"><p class="eyebrow">A DAY OUT, TOGETHER</p><h1>十年同行<br>一起去探索。</h1><p class="muted">BSO 10周年 · 公园团队赛</p><div class="card"><h2>'+(/^[1-6]$/.test(hint)?'Team '+hint+' 登录':'欢迎来到活动空间')+'</h2><p class="muted">队伍使用本队共享账号；工作人员使用自己的独立账号。</p>'+form('login',field('账号邮箱','email','','email','required autocomplete="username"')+field('密码','password','','password','required autocomplete="current-password"'),'进入活动')+'<p id="login-status" class="notice" role="status" aria-live="polite" hidden></p></div><small>2026.10.15 · Asia/Shanghai<br>43名参赛者 · 6支队伍 · 8位工作人员</small></div>';
+ app.innerHTML='<div class="login"><p class="eyebrow">A DAY OUT, TOGETHER</p><h1>十年同行<br>一起去探索。</h1><p class="muted">BSO 10周年 · 公园团队赛</p><div class="card"><h2>'+(/^[1-6]$/.test(hint)?'Team '+hint+' 登录':'欢迎来到活动空间')+'</h2><p class="muted">队伍使用本队共享账号；工作人员使用自己的独立账号。</p>'+form('login',field('账号邮箱','email','','email','required autocomplete="username"')+field('密码','password','','password','required autocomplete="current-password"'),'进入活动')+'<p id="login-status" class="notice" role="status" aria-live="polite" hidden></p></div><small>2026.10.15 · Asia/Shanghai<br>42名参赛者 · 6支队伍 · 8位工作人员</small></div>';
  if(!config.key){$('#login button').disabled=true;toast('网站尚未配置Supabase公开密钥，请按部署教程配置后重新发布');}
 }
 async function sync(){
