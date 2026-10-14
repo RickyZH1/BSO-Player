@@ -111,7 +111,7 @@ function guide(){return '<p class="eyebrow">BEFORE YOU GO</p><h1>一起玩，也
  ].map(([title,body])=>'<div class="card"><h2>'+title+'</h2><p>'+e(body)+'</p></div>').join('')+btn('立即刷新','refresh','','quiet');}
 function staffHome(){return '<p class="eyebrow">STAFF PORTAL · '+e(data.profile.display_name)+'</p><h1>现场总览</h1>'+syncLabel()+'<div class="hero"><div class="row"><h2>'+names[data.control.phase]+'</h2><span class="pill">全部业务权限</span></div><p>照片待审 '+data.photos.filter(p=>p.status==='pending').length+' · Bingo待审 '+data.claims.filter(c=>c.status==='pending').length+'</p><p class="muted">上次阶段操作：'+e(staffName(data.control.updated_by))+' · '+time(data.control.updated_at)+'</p></div><div class="card table-wrap"><table><thead><tr><th>队伍</th><th>人数</th><th>完成</th><th>银票</th><th>记录</th></tr></thead><tbody>'+data.teams.map(t=>'<tr><td>'+e(t.code)+'</td><td>'+t.member_count+'</td><td>'+done(t.id)+'/9</td><td>'+balance(t.id)+'两</td><td>'+btn('查看','team',t.id,'quiet')+'</td></tr>').join('')+'</tbody></table></div>'+announcements()+btn('导出队伍成绩 CSV','export')+btn('导出全部银票流水 CSV','export-ledger','','quiet');}
 function staffTasks(){return '<p class="eyebrow">ON-SITE REVIEW</p><h1>关卡与美食审核</h1><div class="card"><p>先登记开始挑战，完成后输入成绩。请核对队伍及现场判定；所有工作人员均可代办。</p>'+form('select-task',selectTeam()+selectTask(),'进入关卡')+'</div><h2>美食清单与解锁</h2>'+data.food.map(x=>'<div class="card"><h3>Team '+x.team_id+' <span class="tag">'+(x.unlocked_at?'已解锁':'未解锁')+'</span></h3><p class="rule">'+e(x.substitute_details||x.secret_details)+'</p><div class="form-actions">'+btn('解锁本队清单','unlock',x.team_id)+btn('修改替代方案','food-edit',x.team_id,'quiet')+'</div><p class="muted">完整验收请在上方选择 Team, the eater。证明可在现场查看。</p></div>').join('');}
-function photoReview(){return '<p class="eyebrow">PRIVATE PHOTO QUEUE</p><h1>照片审核</h1><p>按提交先后排列。较早待审记录会阻止首发奖金结算，基础奖可以先发。驳回或撤销需说明原因。</p>'+data.photos.filter(p=>p.status!=='uploading').map(p=>'<div class="card"><div class="row"><h3>Team '+p.team_id+' · PHOTO '+p.target_id+'</h3><span class="tag">'+statusName[p.status]+'</span></div><p>'+time(p.submitted_at)+' · '+(data.photos.some(x=>x.target_id===p.target_id&&x.status==='pending'&&new Date(x.submitted_at)<new Date(p.submitted_at))?'有更早待审，首发未决':'按服务器顺序判定首发')+'</p><p>'+e(p.reject_reason||'')+'</p><div class="form-actions">'+btn('查看证明照片','evidence',p.id,'quiet')+btn(p.status==='approved'?'更正 / 撤销':'审核此照片','photo-review',p.id)+'</div></div>').join('')+(data.photos.length?'':'<div class="empty">尚无照片提交</div>');}
+function photoReview(){return '<p class="eyebrow">PRIVATE PHOTO QUEUE</p><h1>照片审核</h1>'+hideSeekEmergencyCard()+'<p>按提交先后排列。较早待审记录会阻止首发奖金结算，基础奖可以先发。驳回或撤销需说明原因。</p>'+data.photos.filter(p=>p.status!=='uploading').map(p=>'<div class="card"><div class="row"><h3>Team '+p.team_id+' · PHOTO '+p.target_id+'</h3><span class="tag">'+statusName[p.status]+'</span></div><p>'+time(p.submitted_at)+' · '+(data.photos.some(x=>x.target_id===p.target_id&&x.status==='pending'&&new Date(x.submitted_at)<new Date(p.submitted_at))?'有更早待审，首发未决':'按服务器顺序判定首发')+'</p><p>'+e(p.reject_reason||'')+'</p><div class="form-actions">'+btn('查看证明照片','evidence',p.id,'quiet')+btn(p.status==='approved'?'更正 / 撤销':'审核此照片','photo-review',p.id)+'</div></div>').join('')+(data.photos.length?'':'<div class="empty">尚无照片提交</div>');}
 function staffBingo(){return '<p class="eyebrow">CLAIM REVIEW</p><h1>Bingo申报审核</h1><p>已通过但奖金为0表示更早申请仍未裁决。系统按有效申请顺序授奖。</p>'+data.claims.map(c=>'<div class="card"><h3>Team '+c.team_id+' · '+(c.kind==='first'?'First Bingo':'Full House')+'</h3><p>'+time(c.submitted_at)+' · '+statusName[c.status]+' · 奖励 '+c.reward+'两'+(c.rank?' · 第'+c.rank+'名':'')+'</p><p>'+e(c.rejection_reason||'')+'</p>'+btn('审核 / 更正','claim-review',c.id)+'</div>').join('')+(data.claims.length?'':'<div class="empty">尚无Bingo申报</div>');}
 function control(){return '<p class="eyebrow">GAME CONTROL</p><h1>活动管理</h1><div class="card"><h2>阶段控制</h2><p>当前：'+names[data.control.phase]+' · 2026-10-15 · 上海时间</p><p>最后操作者：'+e(staffName(data.control.updated_by))+'</p>'+form('phase','<label>进入阶段<select name="phase">'+Object.entries(names).filter(([k])=>k!=='PRE_EVENT').map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('')+'</select></label>'+field('最终截止时间（上海时间；清盘提醒时必填）','close_at','','datetime-local'),'确认阶段变更')+'</div><div class="cols"><div class="card"><h2>公共公告</h2><p>只发布全员可见内容，勿写队伍成绩、内部规则或秘密地点。</p>'+form('announcement',area('公告正文','message'),'发布公告')+'</div><div class="card"><h2>银票更正</h2>'+form('adjust',selectTeam()+field('调整金额（10两整数倍；扣减填负数）','amount','','number','required step="10"')+area('原因（必填）','reason'),'确认追加更正流水')+'</div></div><div class="card"><h2>集合、范围及联络</h2>'+form('settings',area('统一开场集合通知 / 对阵安排','opening',data.control.opening_notice)+area('探索范围与安全禁入说明','scope',data.control.scope_notice)+area('公开联络方式','contact',data.control.contact_notice),'保存公共内容')+'</div><div class="card"><h2>地点线索编辑入口</h2><p>这里只填玩家可见的模糊线索或活动范围。精确地点请填工作人员私密备注。</p><div class="stack">'+data.clues.map(c=>btn('编辑 '+e(taskName(c.task_id)),'clue-edit',c.task_id,'quiet')).join('')+'</div></div><div class="card"><h2>工作人员规则与私密地点</h2><div class="stack">'+data.rules.map(r=>btn(e(taskName(r.task_id)),'rule-edit',r.task_id,'quiet')).join('')+'</div></div><div class="card"><h2>最近200条审计</h2>'+btn('导出当前审计 CSV','export-audit','','quiet')+'<ul class="entries">'+data.audit.map(a=>'<li>'+e(a.action)+' · '+e(staffName(a.actor_auth_id))+'<small>'+time(a.at)+' · '+e(a.object_id)+' · '+e(a.reason||'')+'</small></li>').join('')+'</ul></div>';}
 function render(){if(!data)return;nav();app.innerHTML=data.profile.role==='staff'?({home:staffHome,tasks:staffTasks,photos:photoReview,bingo:staffBingo,control}[tab]||staffHome)():({home,bingo,explore,guide}[tab]||home)();}
@@ -124,6 +124,15 @@ function taskCard(id){
  else{body+='<p class="notice">'+e(clue?.text||'地点线索待公布')+'</p>'+(clue?.image_asset?'<img class="map" src="'+safeImage(clue.image_asset)+'" alt="地点局部线索照片">':'')+(clue?.learning_source?'<p>学习来源：'+e(clue.learning_source)+'</p>':'')+'<p>到场后请听工作人员讲解游戏规则。</p>';
  if(task.kind==='food'){const x=data.food[0];body+='<h3>本队美食任务</h3>'+(x?'<p class="rule">'+e(x.substitute_details||x.secret_details)+'</p>':'<p>找到Seven，由工作人员解锁后显示本队清单。</p>');}}
  modal(body);
+}
+function hideSeekEmergencyCard(){
+ if(!Array.isArray(data.hide_seek_emergencies))return '<div class="card"><h2>Hide and Seek 人工应急</h2><p class="muted">主办方执行005_review_emergency.sql后启用。正常照片审核可照常操作。</p></div>';
+ const active=data.hide_seek_emergencies.filter(x=>x.active);
+ return '<div class="card"><h2>Hide and Seek 人工应急</h2><p>仅用于现场核验或审核故障：直接点亮所选队伍的照片任务，不要求已有5张有效照片。</p><p class="notice">仅点亮，不自动加银票；需奖励时另在管理→银票更正填写理由。正常照片后续审核仍会计奖，手工调整前请对账避免重复。</p><p>点亮仅限探索开放且未截止；服务器记录当前时间，不能倒填。撤销应急后，有5张有效照片的队仍保持完成。</p>'+btn('选择队伍并处理人工应急','hide-seek-emergency','','quiet')+(active.length?'<ul class="entries">'+active.map(x=>'<li>Team '+x.team_id+' · 已应急点亮 · '+time(x.performed_at)+'<small>'+e(staffName(x.approved_by))+'：'+e(x.reason)+'</small></li>').join('')+'</ul>':'<p class="muted">当前没有有效人工应急记录。</p>')+'</div>';
+}
+function hideSeekEmergency(){
+ const versions=Object.fromEntries(data.teams.map(t=>[t.id,data.hide_seek_emergencies.find(x=>x.team_id===t.id)?.version||0]));
+ modal('<h2>Hide and Seek 人工应急</h2><p class="notice">跳过5张有效照片条件，只变更完成状态，不自动发银票。请确认已经现场核验证据。</p>'+form('hide-seek-emergency',selectTeam()+'<input type="hidden" name="versions" value="'+e(JSON.stringify(versions))+'"><label>操作<select name="operation"><option value="complete">人工应急点亮</option><option value="revoke">撤销人工应急（保留真实照片）</option></select></label><label>应急／撤销理由（必填，最多1000字）<textarea name="reason" required maxlength="1000"></textarea></label><label><input type="checkbox" name="verified" required>已现场核验，理解本操作不自动加银票且不能回填时间</label>','核对并确认人工应急'));
 }
 function staffTask(team,id){
  const r=rows(team).find(r=>r.task_id===id),rule=data.rules.find(r=>r.task_id===id);
@@ -142,10 +151,11 @@ function upload(target){
 }
 function review(type,id){
  const item=(type==='photo'?data.photos:data.claims).find(x=>x.id===id);
- modal('<h2>Team '+item.team_id+' · '+(type==='photo'?'PHOTO '+item.target_id:'Bingo申报')+'</h2>'+form('review','<input type="hidden" name="type" value="'+type+'"><input type="hidden" name="id" value="'+id+'"><label>审核决定<select name="status"><option value="approved">通过</option><option value="rejected">驳回 / 撤销</option></select></label>'+area('原因（驳回、撤销、更正必须填写）','reason'),'核对并确认'));
+ modal('<h2>Team '+item.team_id+' · '+(type==='photo'?'PHOTO '+item.target_id:'Bingo申报')+'</h2>'+form('review','<input type="hidden" name="type" value="'+type+'"><input type="hidden" name="record_id" value="'+id+'"><label>审核决定<select name="status"><option value="approved">通过</option><option value="rejected">驳回 / 撤销</option></select></label>'+area('原因（驳回、撤销、更正必须填写）','reason'),'核对并确认'));
 }
 function download(name,rows){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([csv(rows)],{type:'text/csv;charset=utf-8'}));a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 async function clickAction(name,v){
+ if(name==='hide-seek-emergency')return hideSeekEmergency();
  if(name==='tab'){tab=v;if(dialog.open)dialog.close();render();return;}
  if(name==='refresh')return sync();
  if(name==='logout'){await client.auth.signOut();return;}
@@ -167,7 +177,8 @@ async function clickAction(name,v){
  if(name==='export-audit')download('BSO-audit-latest-200.csv',[['ID','操作','对象','操作者','上海时间','原因','变更前','提交内容'],...data.audit.map(a=>[a.id,a.action,a.object_id,staffName(a.actor_auth_id),time(a.at),a.reason,JSON.stringify(a.before_json),JSON.stringify(a.after_json)])]);
 }
 async function submit(formEl){
- const d=Object.fromEntries(new FormData(formEl)),id=formEl.id;
+ // 表单中name="id"会遮蔽HTMLFormElement.id；使用真实属性识别操作。
+ const d=Object.fromEntries(new FormData(formEl)),id=formEl.getAttribute('id');
  if(id==='login'){loginStatus('正在验证账号，请稍候…');const {data:s,error}=await deadline(client.auth.signInWithPassword({email:d.email.trim(),password:d.password}),30000,'登录连接超时，请切换网络后重试');if(error)throw error;session=s.session;tab='home';loginStatus('账号验证成功，正在读取本队数据…');await sync();if(data)render();return;}
  if(id==='select-task')return staffTask(+d.team,d.task);
  if(id==='upload'){
@@ -182,9 +193,13 @@ async function submit(formEl){
   const preview=await action('preview_score',payload);
   if(!confirm('Team '+d.team+' · '+taskName(d.task)+'\n奖励 '+preview.amount+' 两，确认完整参与并记入完成状态？'))return;
   await action(d.correct==='true'?'correct_task':'approve_task',payload);
+ }else if(id==='hide-seek-emergency'){
+  const version=JSON.parse(d.versions)[d.team];
+  if(!confirm('Team '+d.team+' · Hide and Seek\n'+(d.operation==='complete'?'人工应急点亮':'撤销人工应急')+'\n不自动增加银票；将记录本人身份和理由。确认？'))return;
+  await action(d.operation==='complete'?'emergency_hide_seek':'revoke_emergency_hide_seek',{team:+d.team,version,reason:d.reason.trim(),verified:d.verified==='on'});
  }else if(id==='review'){
   if(!confirm('确认本次审核决定？奖金与相关资格会由服务器重新核验。'))return;
-  await action(d.type==='photo'?'review_photo':'review_claim',{id:d.id,status:d.status,reason:d.reason});
+  await action(d.type==='photo'?'review_photo':'review_claim',{id:d.record_id,status:d.status,reason:d.reason});
  }else if(id==='phase'){
   if(!confirm('确认进入“'+names[d.phase]+'”？请与其他工作人员沟通。'))return;
   await action('phase',{phase:d.phase,version:data.control.version,...(d.close_at?{close_at:d.close_at+':00+08:00'}:{})});
@@ -214,3 +229,4 @@ if(client){
  const {data:s}=await client.auth.getSession();session=s.session;if(session)await sync();else login();
  poll=setInterval(()=>{if(!document.hidden&&navigator.onLine&&!busy)sync();},15000);
 }else login();
+

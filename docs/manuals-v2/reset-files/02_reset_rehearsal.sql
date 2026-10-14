@@ -37,6 +37,9 @@ begin
   'ledger_count',(select count(*) from public.score_ledger),
   'completed_count',(select count(*) from public.team_task_results where completed)
  ) into old_state;
+ if to_regclass('private.hide_seek_emergencies') is not null then
+  execute 'delete from private.hide_seek_emergencies';
+ end if;
  delete from public.task_evidence;
  delete from public.photo_submissions;
  delete from public.bingo_claims;
