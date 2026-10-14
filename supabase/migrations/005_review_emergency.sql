@@ -178,6 +178,7 @@ begin
 end $$;
 revoke all on function public.portal_read() from public,anon;
 grant execute on function public.portal_read() to authenticated;
+notify pgrst, 'reload schema';
 commit;
 
 

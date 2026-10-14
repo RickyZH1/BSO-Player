@@ -87,6 +87,27 @@ for(let i=0;i<8;i++){
  await act(staff[i],'revoke_emergency_hide_seek',manual(team,v+1,'轮流审核权限验收'));
  ok(!(await result(team)).completed,'all eight staff can complete and revoke');
 }
+// 应急完成必须与正常申报资格和冲正联动，不能只改页面颜色。
+const hidePosition=+(await root.query("select position from public.bingo_cells where team_id=5 and task_id='hide_and_seek'")).rows[0].position;
+const rowStart=Math.floor((hidePosition-1)/3)*3+1;
+const line=[rowStart,rowStart+1,rowStart+2].filter(x=>x!==hidePosition);
+const extras=[1,2,3,4,5,6,7,8,9].filter(x=>!line.includes(x)&&x!==hidePosition).slice(0,2);
+await root.query("update public.team_task_results set completed=true,counts_for_bingo=true,performed_at=clock_timestamp() where team_id=5 and task_id in(select task_id from public.bingo_cells where team_id=5 and position=any($1::int[]))",[[...line,...extras]]);
+await deny(act(teams[4],'claim',{kind:'first'}));
+await act(staff[0],'emergency_hide_seek',manual(5));
+const firstClaim=await act(teams[4],'claim',{kind:'first'});
+await act(staff[1],'review_claim',{id:firstClaim.id,status:'approved',reason:''});
+ok(await balance(5)===600,'emergency can supply the fifth task and line, normal First approval awards100');
+await act(staff[2],'revoke_emergency_hide_seek',manual(5,1,'撤销应急后只有四项有效任务'));
+ok(await balance(5)===500,'losing emergency qualification reverses First bonus');
+await root.query("update public.team_task_results set completed=true,counts_for_bingo=true,performed_at=clock_timestamp() where team_id=6 and task_id<>'hide_and_seek'");
+await deny(act(teams[5],'claim',{kind:'full'}));
+await act(staff[3],'emergency_hide_seek',manual(6));
+const fullClaim=await act(teams[5],'claim',{kind:'full'});
+await act(staff[4],'review_claim',{id:fullClaim.id,status:'approved',reason:''});
+ok(await balance(6)===620,'emergency supplies ninth task, Full approval120');
+await act(staff[5],'revoke_emergency_hide_seek',manual(6,1,'撤销应急后只剩八项'));
+ok(await balance(6)===500,'revoke emergency reverses Full bonus');
 const version=(await read(staff[0])).hide_seek_emergencies.find(x=>x.team_id===3).version;
 const concurrent=await Promise.allSettled([act(staff[0],'emergency_hide_seek',manual(3,version)),act(staff[1],'emergency_hide_seek',manual(3,version))]);
 ok(concurrent.filter(x=>x.status==='fulfilled').length===1,'concurrent staff only one completion succeeds');
